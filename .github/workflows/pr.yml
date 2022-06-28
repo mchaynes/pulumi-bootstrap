@@ -1,1 +1,32 @@
-{"name":"Pulumi","on":{"push":{"paths":["Pulumi.yaml"],"branches":["main"]}},"env":{"PULUMI_ACCESS_TOKEN":"${{ secrets.PULUMI_ACCESS_TOKEN }}","GOOGLE_APPLICATION_CREDENTIALS":"${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}","GOOGLE_CLIENT_SECRET":"${{ secrets.GOOGLE_CLIENT_SECRET }}"},"jobs":{"update":{"name":"Update","runs-on":"ubuntu-latest","steps":[{"uses":"actions/checkout@v2"},{"uses":"actions/checkout@v2","with":{"path":"pulumi-yamltube","repository":"mchaynes/pulumi-yamltube","ref":"main"}},{"run":"pushd pulumi-yamltube && make provider && popd\n"},{"run":"echo \"${{ github.workspace }}/pulumi-yamltube/bin\" >> $GITHUB_PATH"},{"uses":"pulumi/actions@v3","env":{"PULUMI_ACCESS_TOKEN":"${{ secrets.PULUMI_ACCESS_TOKEN }}","GOOGLE_APPLICATION_CREDENTIALS":"${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}"},"with":{"command":"up","stack-name":"${{ secrets.STACK_NAME }}"}}]}}}
+name: Pulumi
+'on':
+  push:
+    paths:
+      - Pulumi.yaml
+    branches:
+      - main
+env:
+  PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+  GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+  GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+jobs:
+  update:
+    name: Update
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
+        with:
+          path: pulumi-yamltube
+          repository: mchaynes/pulumi-yamltube
+          ref: main
+      - run: |
+          pushd pulumi-yamltube && make provider && popd
+      - run: echo "${{ github.workspace }}/pulumi-yamltube/bin" >> $GITHUB_PATH
+      - uses: pulumi/actions@v3
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        with:
+          command: up
+          stack-name: ${{ secrets.STACK_NAME }}
