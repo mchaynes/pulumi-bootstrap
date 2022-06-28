@@ -3,7 +3,7 @@ name: Pulumi
   push:
     branches:
       - main
-env: |
+env: &ref_0
   PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 jobs:
   update:
@@ -14,8 +14,7 @@ jobs:
       - name: Install Pulumi CLI
         uses: pulumi/setup-pulumi@v2
       - uses: pulumi/actions@v3
-        env: |
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+        env: *ref_0
         with:
           command: up
           stack-name: ${{ secrets.STACK_NAME }}
