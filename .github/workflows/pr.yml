@@ -4,6 +4,8 @@ name: Pulumi
     branches:
       - main
 env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PULUMI_STACK_NAME: ${{ secrets.PULUMI_STACK_NAME }}
   PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
 jobs:
   update:
@@ -15,7 +17,9 @@ jobs:
         uses: pulumi/setup-pulumi@v2
       - uses: pulumi/actions@v3
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PULUMI_STACK_NAME: ${{ secrets.PULUMI_STACK_NAME }}
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
         with:
           command: up
-          stack-name: ${{ secrets.STACK_NAME }}
+          stack-name: ${{ secrets.PULUMI_STACK_NAME }}
