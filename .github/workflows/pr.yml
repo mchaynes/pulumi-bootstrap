@@ -3,7 +3,11 @@ name: Pulumi
   push:
     branches:
       - main
+permissions:
+  id-token: write
+  contents: read
 env:
+  ROLE_ARN: ${{ secrets.ROLE_ARN }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PULUMI_STACK_NAME: ${{ secrets.PULUMI_STACK_NAME }}
   PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
@@ -15,8 +19,18 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install Pulumi CLI
         uses: pulumi/setup-pulumi@v2
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@master
+        with:
+          role-to-assume: ${{ secrets.ROLE_ARN }}
+          role-session-name: githubactions
+          aws-region: us-west-2
+      - name: Check permissions
+        run: |
+          aws sts get-caller-identity
       - uses: pulumi/actions@v3
         env:
+          ROLE_ARN: ${{ secrets.ROLE_ARN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PULUMI_STACK_NAME: ${{ secrets.PULUMI_STACK_NAME }}
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
