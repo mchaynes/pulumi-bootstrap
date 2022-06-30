@@ -1,4 +1,4 @@
-name: Pulumi
+name: Run Pulumi Up
 'on':
   push:
     branches:
@@ -7,6 +7,10 @@ permissions:
   id-token: write
   contents: read
 env:
+  MONGO_CLIENT_URL: ${{ secrets.MONGO_CLIENT_URL }}
+  HOST: ${{ secrets.HOST }}
+  PORT: ${{ secrets.PORT }}
+  WHOAMI: ${{ secrets.WHOAMI }}
   ROLE_ARN: ${{ secrets.ROLE_ARN }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PULUMI_STACK_NAME: ${{ secrets.PULUMI_STACK_NAME }}
@@ -30,6 +34,10 @@ jobs:
           aws sts get-caller-identity
       - uses: pulumi/actions@v3
         env:
+          MONGO_CLIENT_URL: ${{ secrets.MONGO_CLIENT_URL }}
+          HOST: ${{ secrets.HOST }}
+          PORT: ${{ secrets.PORT }}
+          WHOAMI: ${{ secrets.WHOAMI }}
           ROLE_ARN: ${{ secrets.ROLE_ARN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PULUMI_STACK_NAME: ${{ secrets.PULUMI_STACK_NAME }}
