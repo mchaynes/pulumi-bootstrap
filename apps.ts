@@ -26,8 +26,8 @@ export function githubActionApps(envs: string[]): Apps {
             [`github-actions-${env}`]: {
                 bootstraps: [
                     async () => {
-                        const outputs = await DocDb.up(env)
-                        await ApiGwServer.up(env, outputs)
+                        const outputs = await DocDb.up(`docdb-${env}`)
+                        await ApiGwServer.up(`apigw-${env}`, outputs)
                     }
                 ],
                 // github actions are CI/CD processes, so they should just bootstrap then exit
