@@ -3,15 +3,13 @@ import * as github from '@pulumi/github';
 import * as pulumiservice from '@pulumi/pulumiservice';
 import * as aws from '@pulumi/aws';
 import * as yaml from 'js-yaml';
-import { GitWorkspace, InlineProgramArgs, LocalWorkspace } from '@pulumi/pulumi/automation';
-import { EnvVars } from './index';
-import { pulumiPlugins } from './package.json';
+import * as fs from 'fs'
+import { Pulumi } from './pulumi';
+import { EnvVars } from './env';
+import { fstat } from 'fs';
 
 
 const defaultBranch = "main";
-
-
-
 
 export type GithubToAwsAuthProps = {
     repoOwner: string;
@@ -20,12 +18,10 @@ export type GithubToAwsAuthProps = {
 
 export class GithubToAwsAuth {
     static async up(stackName: string, { repoName, repoOwner }: GithubToAwsAuthProps) {
-
-        const program = async () => {
+        await Pulumi.up(`github-aws-${stackName}`, async () => {
             const oidcHost = `token.actions.githubusercontent.com`;
             const oidcUrl = `https://${oidcHost}`;
 
-            const partition = await aws.getPartition();
             const clientIdList = [`https://github.com/${repoOwner}`, "sts.amazonaws.com"];
 
             const oidcProvider = new aws.iam.OpenIdConnectProvider("secure-cloud-access", {
@@ -59,8 +55,22 @@ export class GithubToAwsAuth {
                 } as aws.iam.PolicyDocument,
             });
 
+            const policy = new aws.iam.Policy("iam-policy", {
+                name: "github-admin-policy",
+                policy: JSON.stringify({
+                    Version: "2012-10-17",
+                    Statement: [
+                        {
+                            "Effect": "Allow",
+                            "Action": "*",
+                            "Resource": "*"
+                        }
+                    ]
+                }, null, 4)
+            })
+
             new aws.iam.PolicyAttachment("access", {
-                policyArn: `arn:${partition.partition}:iam::aws:policy/AdministratorAccess`,
+                policyArn: policy.arn,
                 roles: [role.name],
             });
 
@@ -69,22 +79,7 @@ export class GithubToAwsAuth {
                 secretName: EnvVars.ROLE_ARN,
                 plaintextValue: pulumi.interpolate`${role.arn}`,
             });
-        };
-        const inlineArgs: InlineProgramArgs = {
-            stackName: `github-aws-${stackName}`,
-            projectName: "myles-hackathon",
-            program: program,
-        };
-        // create (or select if one already exists) a stack that uses our inline program
-        const stack = await GitWorkspace.createOrSelectStack(inlineArgs);
-
-        console.info("successfully initialized stack");
-        console.info("installing plugins...");
-        for (let [plugin, version] of Object.entries(pulumiPlugins)) {
-            await stack.workspace.installPlugin(plugin, version);
-        }
-        console.info("plugins installed");
-        const upRes = await stack.up({ onOutput: console.info, onEvent: (e) => console.warn(JSON.stringify(e)) });
+        });
     }
 }
 
@@ -101,7 +96,7 @@ export type RepoCollaborators = {
 
 export class Repo {
     static async up(repoName: string, { owner, collaborators }: RepoProps) {
-        const program = async () => {
+        await Pulumi.up("github-repo", async () => {
             const provider = new github.Provider("provider", {
                 owner: owner,
             });
@@ -115,37 +110,31 @@ export class Repo {
             }, opts);
 
             for (let [username, config] of Object.entries(collaborators)) {
-
-                new github.RepositoryCollaborator(`collab-${username}`, {
-                    permission: config.permission,
-                    repository: repoName,
-                    username: username,
-                }, opts);
+                /*
+                    All of this code exists because there is a bug in the github.RepositoryCollaborator
+                    an extra "/" is appended in the middle of the PUT request so we get a 404 from github
+                    TODO: file issue on this
+                */
+                const resp = await fetch(`https://api.github.com/repos/${owner}/${repoName}/collaborators/${username}`, {
+                    headers: {
+                        // TODO: make this not hacky
+                        Authorization: `token ${process.env["GITHUB_TOKEN"]}`,
+                        Accept: 'application/vnd.github.v3+json'
+                    },
+                    method: "PUT",
+                    body: JSON.stringify({
+                        permission: config.permission,
+                    })
+                });
+                // 2xx status code
+                if (`${resp.status}`.startsWith("2")) {
+                    console.log(`Added collaborator: ${username}`);
+                } else {
+                    console.error("Error adding collaborator: " + await resp.text());
+                }
             }
 
-            new github.RepositoryFile("push-action", {
-                repository: repo.name,
-                branch: defaultBranch,
-                file: ".github/workflows/pr.yml",
-                content: generateActionFile(Object.values(EnvVars)),
-            }, opts);
-        };
-
-        const inlineArgs: InlineProgramArgs = {
-            stackName: `github-repo-${repoName}`,
-            projectName: "myles-hackathon",
-            program: program,
-        };
-        // create (or select if one already exists) a stack that uses our inline program
-        const stack = await GitWorkspace.createOrSelectStack(inlineArgs);
-
-        console.info("successfully initialized stack");
-        console.info("installing plugins...");
-        for (let [plugin, version] of Object.entries(pulumiPlugins)) {
-            await stack.workspace.installPlugin(plugin, version);
-        }
-        console.info("plugins installed");
-        const upRes = await stack.up({ onOutput: console.info, onEvent: (e) => console.warn(JSON.stringify(e)) });
+        });
     }
 }
 
@@ -157,17 +146,13 @@ type BranchProps = {
 
 export class Branch {
 
-    static async up(branchName: string, args: BranchProps) {
+    static program(branchName: string, args: BranchProps) {
         const { owner, repoName, whoami } = args;
-
-        const program = async () => {
-
+        return async () => {
             const provider = new github.Provider("provider", {
                 owner: owner,
             });
-
             const opts = { provider: provider };
-
             const user = await github.getUser({
                 // Retrieve information about the currently authenticated user.
                 username: "",
@@ -185,43 +170,33 @@ export class Branch {
                 description: pulumi.interpolate`token for branch ${owner}/${repoName}/${branchName}`
             });
 
-            const patSecret = new github.ActionsEnvironmentSecret("source-access-token", {
+            new github.ActionsEnvironmentSecret("source-access-token", {
                 repository: repoName,
                 environment: repoEnv.environment,
                 secretName: EnvVars.PULUMI_ACCESS_TOKEN,
                 plaintextValue: pulumi.interpolate`${pulumiToken.value}`,
             }, opts);
 
-            const stackNameSecret = new github.ActionsEnvironmentSecret("stack-name-secret", {
+            new github.ActionsEnvironmentSecret("stack-name-secret", {
                 repository: repoName,
                 environment: repoEnv.environment,
                 secretName: EnvVars.PULUMI_STACK_NAME,
                 plaintextValue: branchName,
             }, opts);
 
-            const whoamiSecret = new github.ActionsEnvironmentSecret("whoami-secret", {
+            new github.ActionsEnvironmentSecret("whoami-secret", {
                 repository: repoName,
                 environment: repoEnv.environment,
-                secretName: EnvVars.WHO_AM_I,
+                secretName: EnvVars.WHOAMI,
                 plaintextValue: whoami,
             })
-        };
 
-        const inlineArgs: InlineProgramArgs = {
-            stackName: `gh-branch-${branchName}`,
-            projectName: "myles-hackathon",
-            program: program,
+            fs.writeFileSync(".github/workflows/push.yml", generateActionFile(Object.values(EnvVars)))
         };
-        // create (or select if one already exists) a stack that uses our inline program
-        const stack = await LocalWorkspace.createOrSelectStack(inlineArgs);
+    }
 
-        console.info("successfully initialized stack");
-        console.info("installing plugins...");
-        for (let [plugin, version] of Object.entries(pulumiPlugins)) {
-            await stack.workspace.installPlugin(plugin, version);
-        }
-        console.info("plugins installed");
-        const upRes = await stack.up({ onOutput: console.info, onEvent: (e) => console.warn(JSON.stringify(e)) });
+    static async up(branchName: string, args: BranchProps) {
+        await Pulumi.up(`gh-branch-${branchName}`, Branch.program(branchName, args))
     }
 }
 
@@ -259,31 +234,33 @@ function generateActionFile(secrets: string[]) {
                 "runs-on": "ubuntu-latest",
                 "steps": [
                     {
-                        "uses": "actions/checkout@v2"
+                        uses: "actions/checkout@v2"
                     },
                     {
-                        "name": "Install Pulumi CLI",
-                        "uses": "pulumi/setup-pulumi@v2",
+                        name: "Install Pulumi CLI",
+                        uses: "pulumi/setup-pulumi@v2",
                     },
                     {
-                        "name": "configure aws credentials",
-                        "uses": "aws-actions/configure-aws-credentials@master",
-                        "with": {
+                        name: "configure aws credentials",
+                        uses: "aws-actions/configure-aws-credentials@master",
+                        with: {
                             "role-to-assume": toSecretStr(EnvVars.ROLE_ARN),
                             "role-session-name": "githubactions",
                             "aws-region": "us-west-2"
                         },
                     },
                     {
-                        "name": "Check permissions",
-                        "run": "aws sts get-caller-identity\n"
+                        name: "setup node",
+                        uses: "actions/setup-node@v3",
+                        with: {
+                            "node-version": "18"
+                        }
                     },
                     {
-                        "uses": "pulumi/actions@v3",
-                        "env": env,
-                        "with": {
-                            "command": "up",
-                            "stack-name": toSecretStr(EnvVars.PULUMI_STACK_NAME),
+                        name: "start app",
+                        run: "yarn run tsc && yarn node ./bin/index.js",
+                        env: {
+                            [EnvVars.WHOAMI]: toSecretStr(EnvVars.WHOAMI),
                         }
                     }
                 ]

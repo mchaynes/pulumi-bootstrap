@@ -1,32 +1,56 @@
-import { Cmd } from './cmd';
-import { Branch, GithubToAwsAuth, Repo } from './repo';
-import express from 'express';
-import os from 'os';
-import { DocDb, LocalDockerMongo } from './mongo';
+import { GithubToAwsAuth, Repo } from './repo';
 import { MongoClient } from 'mongodb';
-import { Ecs } from './ecs';
-import { App } from './app';
+import { ExpressServer } from './server';
+import { githubActionApps, laptopApps as laptopApps } from './apps';
+import { EnvVars } from './env'
 
-export enum EnvVars {
-    PULUMI_ACCESS_TOKEN = "PULUMI_ACCESS_TOKEN",
-    PULUMI_STACK_NAME = "PULUMI_STACK_NAME",
-    GITHUB_TOKEN = "GITHUB_TOKEN",
-    ROLE_ARN = "ROLE_ARN",
-    WHO_AM_I = "WHO_AM_I",
-    PORT = "PORT",
-    HOST = "HOST",
-    MONGO_CONN_STRING = "MONGO_CLIENT_URL"
-}
-
-type Stack = {
+/**
+ * What is an app, really?
+ * Does the definition of an "app" include its infrastructure as well?
+ */
+export type App = {
+    /*
+    * bootstraps are any actions that should run before the app starts up that the "live" app
+    * doesn't directly depend on in the code.
+    * Things like github branch setup, rewriting the readme, etc should all live there
+    */
     bootstraps?: (() => Promise<any>)[];
+    /**
+     * Some apps aren't long for this world. These apps are typically "CI/CD" apps
+     */
     bailAfterBootstrap?: boolean;
-    mongo?: () => Promise<MongoClient>;
-}
 
+    // From here on out, all of this config is specific to the live running application.
+    // These functions describe how to grab their various dependencies so that they can
+    // be injected into the application
+
+    /**
+     * mongo function is responsible for getting a connection to a mongo server somehow
+     */
+    mongo?: () => Promise<MongoClient>;
+};
+
+export type Apps = {
+    [stackName: string]: App;
+};
+
+/**
+ * The pulumi providers we rely on install
+ */
+export const pulumiProviders = {
+    "github": "v4.12.0",
+    "pulumiservice": "v0.1.3",
+    "aws": "v5.9.1",
+};
+
+export const projectName = "myles-hackathon";
 const repoName = "source-repo";
 const repoOwner = "mchaynes";
 
+/**
+ * Github Collaborators of on this app
+ * They all get their own branch and deployment
+ */
 export const collaborators = {
     "mchaynes": { permission: "admin" },
     "EvanBoyle": { permission: "admin" },
@@ -35,111 +59,58 @@ export const collaborators = {
     "caseyyh": { permission: "admin" },
 };
 
+/**
+ * The "live" environments
+ */
 export const environments = {
     "dev": {},
     "stage": {},
     "prod": {}
 };
 
-
-/**
- * It'd be cool if we could arbitrarily nest "stack" names in a way that feels natural with this approach
- *  acmecorp/todo-app/myles/laptop/mongo
- *  acmecorp/todo-app/myles/source/repo
- *  acmecorp/todo-app/dev/github/repo
- *  acmecorp/todo-app/dev/aws/mongo
- * 
- *  acmecorp/todo-app/stage/github/repo
- *  acmecorp/todo-app/stage/aws/us-west-2/ecs-and-lb
- *  acmecorp/todo-app/stage/aws/us-west-2/mongo
- *
- *  acmecorp/todo-app/prod/github/repo
- *  acmecorp/todo-app/prod/aws/us-west-2/ecs-and-lb
- *  acmecorp/todo-app/prod/aws/us-west-2/mongo
- *  acmecorp/todo-app/prod/aws/us-east-1/ecs-and-lb
- *  acmecorp/todo-app/prod/aws/us-east-1/mongo
- *  acmecorp/todo-app/prod/aws/eu-west-1/ecs-and-lb
- *  acmecorp/todo-app/prod/aws/eu-west-1/mongo
- */
-
-// convert collaborators into local stacks 
-const localStacks = Object.keys(collaborators).reduce((prev, collab): { [key: string]: Stack; } => {
-    return {
-        [`${collab}-local`]: {
-            // local stack configures the remote github branch
-            bootstraps: [
-                async () => await Branch.up(collab, { owner: repoOwner, repoName: repoName, whoami: `github-actions-${collab}` }),
-            ],
-            // when running, we want to 
-            mongo: async () => await LocalDockerMongo.up(collab),
-        },
-        ...prev
-    };
-}, {});
-
-// convert collaborators and environments into github-actions stacks.
-// each collaborator and each environment gets a branch
-const githubActionStacks = [...Object.keys(collaborators), ...Object.keys(environments)].reduce((prev, env): { [key: string]: Stack; } => {
-    return {
-        [`github-actions-${env}`]: {
-            bootstraps: [
-                async () => await DocDb.up(env),
-                async () => await Ecs.up(env),
-            ],
-            // github actions are CI/CD processes, so they should just bootstrap then exit
-            bailAfterBootstrap: true,
-        },
-        ...prev
-    };
-}, {});
-
-const environmentStacks = Object.keys(environments).reduce((prev, env) => {
-    return {
-        [env]: {
-            mongo: async () => {
-                const client = new MongoClient(process.env[EnvVars.MONGO_CONN_STRING]!);
-                await client.connect();
-                return client;
-            }
-        }
-    };
-}, {});
-
-
-let stacks = {
-    // The "root" stack is for operations that manage all of the other stacks.
-    // These are one-time set up actions. One time as in "we need an admin to do this". 
+let apps: Apps = {
+    // The "root" app is for operations that manage all of the other apps.
+    // This app typically handles permission management.
     // Like giving a new user access, or giving an AWS account permissions to GitHub
+    // Usually this app is ran manually by an admin, or in a "master" or "post-prod" branch
     "root": {
         bootstraps: [
             async () => {
+                // ensure github repo is created, and that all collaborators have been added to repo
                 await Repo.up(repoName, { owner: repoOwner, collaborators: collaborators });
-                for (let env of Object.keys(environments)) {
-                    await GithubToAwsAuth.up(env, { repoName: repoName, repoOwner: repoOwner });
-                }
+                // initialize connection from github to aws
+                await GithubToAwsAuth.up("dev", { repoName: repoName, repoOwner: repoOwner });
             }
         ],
         // root just grants or builds things then exits. It doesn't serve any live traffic
         bailAfterBootstrap: true,
     },
-    ...localStacks,
-    ...githubActionStacks
-
-} as { [key: string]: Stack; }
+    // laptop apps run on a laptop
+    ...laptopApps(repoOwner, repoName, collaborators),
+    // apps that run in github actions
+    ...githubActionApps([...Object.keys(collaborators), ...Object.keys(environments)]),
+};
 
 
 const run = async () => {
+
     // who am i? where am i running? what is my purpose?
-    const whoami = process.env[EnvVars.WHO_AM_I]!;
+    const whoami = process.env[EnvVars.WHOAMI];
 
-    console.log(`Running as: ${whoami}`)
+    console.log(`Available App Names: [${Object.keys(apps).join(", ")}]`);
 
-    if (!(whoami in stacks)) {
-        throw new Error("Please add yourself above and set the WHOAMI environment variable");
+    if (!whoami) {
+        throw new Error(`Please set ${EnvVars.WHOAMI} environment variable.`);
     }
 
-    // get config for this stack
-    const config = stacks[whoami as keyof typeof stacks]; // yucky yucky
+    console.log(`Running as: ${whoami}`);
+
+    if (!(whoami in apps)) {
+        throw new Error(`You are ${whoami}, but you aren't a valid app. You probably need to add yourself to index.ts`);
+    }
+
+    // get config for this app
+    const config = apps[whoami as keyof typeof apps];
 
     // init any "bootstrap" actions
     // "bootstraps" are any functions that should run that the "live" application doesn't depend on. 
@@ -153,19 +124,17 @@ const run = async () => {
     }
 
     if (config.bailAfterBootstrap) {
-        console.log(`stack ${whoami} out after successful bootstrap`);
+        console.log(`\n\nI, ${whoami}, am bailing out after successful bootstrap\n\n`);
         process.exit(0);
     }
 
     if (!config.mongo) {
-        throw new Error("this stack should either have mongo configured or bail out earlier");
+        throw new Error("this app's config doesn't have a mongo connection");
     }
 
     const mongoClient = await config.mongo();
 
-    const app = new App(mongoClient)
-
-    await app.start();
+    await ExpressServer.up(mongoClient);
 };
 
 

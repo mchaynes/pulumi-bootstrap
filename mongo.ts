@@ -1,14 +1,36 @@
-import * as command from '@pulumi/command';
+import { spawnSync } from 'child_process';
 import { InlineProgramArgs, LocalWorkspace } from '@pulumi/pulumi/automation';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { MongoClient } from "mongodb";
-import { pulumiPlugins } from './package.json';
+import { projectName } from './index';
+import { Pulumi } from './pulumi';
+import * as pulumi from '@pulumi/pulumi'
+import * as aws from '@pulumi/aws'
+import * as random from '@pulumi/random'
 
 
 export class DocDb {
-    static async up(stackName: string): Promise<MongoClient> {
-        return new MongoClient("");
+    static async program() {
+        const password = new random.RandomPassword("password", {
+            length: 8,
+        })
+        const docdb = new aws.docdb.Cluster("docdb", {
+            backupRetentionPeriod: 5,
+            clusterIdentifier: "my-docdb-cluster",
+            engine: "docdb",
+            masterPassword: password.result,
+            masterUsername: "foo",
+            preferredBackupWindow: "07:00-09:00",
+            skipFinalSnapshot: true,
+        });
+
+        return {
+
+        }
+    }
+    static async up(stackName: string)  {
+        Pulumi.up(stackName, DocDb.program)
     }
 }
 
@@ -17,74 +39,69 @@ const mongoPort = "27017";
 const exposedPort = "27017";
 
 
+export type MongoUpOutputs = {
+    username: string | pulumi.Output<string>;
+    password: string | pulumi.Output<string>;
+    host: string | pulumi.Output<string>;
+    port: string | pulumi.Output<string>;
+};
+
+
+/**
+ * LocalDockerMongo spins up local docker instance of mongo using
+ * docker-compose
+ */
 export class LocalDockerMongo {
-    static async up(stackName: string): Promise<MongoClient> {
-        const sourceRoot = process.cwd();
-
-        type OutputVal = {
-            value: string;
-        }
-
-        type Output = {
-            username: OutputVal;
-            password: OutputVal;
-            host: OutputVal;
-            port: OutputVal;
-        };
-
-        // Because we're just using docker compose, 
-        // running this pulumi program is completely unnecessary.
-        // We could just do it inline. But when we run it in a pulumi program
-        // we get some nice properties like a history of runs and engine events
-        // inside the pulumi service
-        const program = async () => {
-
+    // Because we're just using docker compose,
+    // running this as a pulumi program isn't unnecessary.
+    // We could just do it inline. But when we run it in a pulumi program
+    // we get some nice properties like a history of "what happened" and engine events
+    // inside the pulumi service
+    static program(stackName: string, sourceRoot: string) {
+        return async (): Promise<MongoUpOutputs> => {
             const username = "root"; // you should use `new random.RandomPassword()`
             const password = "password"; // you should use `new random.RandomPassword()`
 
             const dockerYaml = dockerComposeYaml(username, password);
 
-            const dockerYamlFile = `${sourceRoot}/${stackName}.stack.yaml`;
+            const dockerYamlFile = `${sourceRoot}/bin/${stackName}.stack.yaml`;
 
-            await fs.promises.writeFile(`${sourceRoot}/${stackName}.stack.yaml`, dockerYaml);
+            // create file
+            await fs.promises.writeFile(`${dockerYamlFile}`, dockerYaml);
 
-            new command.local.Command("update", {
-                update: `docker-compose -f ${dockerYamlFile} up --wait ${dockerServiceName}`,
-            });
-            return {
-                username: username,
-                password: password,
+            spawnSync(`docker-compose down -f ${dockerYamlFile} --timeout 60`);
+
+            spawnSync(`docker-compose -f ${dockerYamlFile} up --wait ${dockerServiceName} --quiet-pull`);
+
+            // strongly typed output properties
+            const output: MongoUpOutputs = {
+                // this is obviously silly because we're hard coding the values above
+                username: pulumi.secret(username),
+                password: pulumi.secret(password),
                 host: "127.0.0.1",
                 port: exposedPort,
             };
+            return output
         };
+    }
 
-        const inlineArgs: InlineProgramArgs = {
-            stackName: stackName,
-            projectName: "myles-hackathon",
-            program: program,
-        };
-        // create (or select if one already exists) a stack that uses our inline program
-        const stack = await LocalWorkspace.createOrSelectStack(inlineArgs);
+    static async up(stackName: string): Promise<MongoClient> {
+        const sourceRoot = process.cwd();
 
-        console.info("successfully initialized stack");
-        console.info("installing plugins...");
-        for (let [plugin, version] of Object.entries(pulumiPlugins)) {
-            await stack.workspace.installPlugin(plugin, version);
-        }
-        console.info("plugins installed");
-        const upRes = await stack.up({ onOutput: console.info, onEvent: (e) => console.warn(JSON.stringify(e)) });
-
-        console.log(JSON.stringify(upRes, null, 2))
-
-        const { username, password, port, host } = upRes.outputs as unknown as Output;
-
-        const client = new MongoClient(`mongodb://${username.value}:${password.value}@${host.value}:${port.value}/`);
+        // typing on output properties 🎉
+        const output = await Pulumi.up<MongoUpOutputs>(stackName, LocalDockerMongo.program(stackName, sourceRoot));
+        const client = new MongoClient(formatMongoUrl(output));
         return client;
     }
 }
 
+export function formatMongoUrl({username, password, host, port}: MongoUpOutputs) {
+    return `mongodb://${username}:${password}@${host}:${port}/`
+}
 
+/**
+ * Generates the docker compose yaml
+ */
 function dockerComposeYaml(username: string, password: string) {
     return yaml.dump({
         version: "3.1",
