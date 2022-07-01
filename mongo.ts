@@ -11,35 +11,37 @@ import * as random from '@pulumi/random'
 
 
 export class DocDb {
-    static async program() {
-        const password = new random.RandomPassword("password", {
-            length: 8,
-        })
-        const docdb = new aws.docdb.Cluster("docdb", {
-            backupRetentionPeriod: 5,
-            clusterIdentifier: "my-docdb-cluster",
-            engine: "docdb",
-            masterPassword: password.result,
-            masterUsername: "foo",
-            preferredBackupWindow: "07:00-09:00",
-            skipFinalSnapshot: true,
-        });
-
-        const output: MongoUpOutputs = {
-            username: docdb.masterUsername,
-            password: password.result,
-            host: docdb.endpoint,
-            port: docdb.port.apply(n => {
-                if (!n) {
-                    throw new Error("docdb port must be set")
-                }
-                return `${n}`
-            }),
+    static program(stackName: string) {
+        return async () => {
+            const password = new random.RandomPassword("password", {
+                length: 8,
+            })
+            const docdb = new aws.docdb.Cluster("docdb", {
+                backupRetentionPeriod: 5,
+                clusterIdentifier: "",
+                engine: "docdb",
+                masterPassword: password.result,
+                masterUsername: "foo",
+                preferredBackupWindow: "07:00-09:00",
+                skipFinalSnapshot: true,
+            });
+    
+            const output: MongoUpOutputs = {
+                username: docdb.masterUsername,
+                password: password.result,
+                host: docdb.endpoint,
+                port: docdb.port.apply(n => {
+                    if (!n) {
+                        throw new Error("docdb port must be set")
+                    }
+                    return `${n}`
+                }),
+            }
+            return output
         }
-        return output
     }
     static async up(stackName: string): Promise<MongoUpOutputs>  {
-        return await Pulumi.up(stackName, DocDb.program)
+        return await Pulumi.up(stackName, DocDb.program(stackName))
     }
 }
 
