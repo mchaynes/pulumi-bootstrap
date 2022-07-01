@@ -1,9 +1,7 @@
 import { spawnSync } from 'child_process';
-import { InlineProgramArgs, LocalWorkspace } from '@pulumi/pulumi/automation';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { MongoClient } from "mongodb";
-import { projectName } from './index';
 import { Pulumi } from './pulumi';
 import * as pulumi from '@pulumi/pulumi'
 import * as aws from '@pulumi/aws'
@@ -111,7 +109,7 @@ export class LocalDockerMongo {
 }
 
 export function formatMongoUrl({username, password, host, port}: MongoUpOutputs) {
-    return `mongodb://${username}:${password}@${host}:${port}/`
+    return encodeURIComponent(`mongodb://${username}:${password}@${host}:${port}/`)
 }
 
 /**
