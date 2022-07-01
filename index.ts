@@ -1,4 +1,4 @@
-import { GithubToAwsAuth, Repo } from './repo';
+import { Branch, GithubToAwsAuth, Repo } from './repo';
 import { MongoClient } from 'mongodb';
 import { ExpressServer } from './server';
 import { githubActionApps, laptopApps as laptopApps } from './apps';
@@ -80,6 +80,7 @@ let apps: Apps = {
                 await Repo.up(repoName, { owner: repoOwner, collaborators: collaborators });
                 // initialize connection from github to aws
                 await GithubToAwsAuth.up("dev", { repoName: repoName, repoOwner: repoOwner });
+                await Branch.up("main", {owner: repoOwner, repoName: repoName, whoami: "root"})
             }
         ],
         // root just grants or builds things then exits. It doesn't serve any live traffic

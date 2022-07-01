@@ -184,14 +184,9 @@ export class Branch {
                 plaintextValue: branchName,
             }, opts);
 
-            new github.ActionsEnvironmentSecret("whoami-secret", {
-                repository: repoName,
-                environment: repoEnv.environment,
-                secretName: EnvVars.WHOAMI,
-                plaintextValue: whoami,
-            })
+            const actionFileContents = generateActionFile(whoami, branchName, Object.values(EnvVars))
 
-            fs.writeFileSync(".github/workflows/push.yml", generateActionFile(Object.values(EnvVars)))
+            fs.writeFileSync(`.github/workflows/${branchName}.yml`, actionFileContents)
         };
     }
 
@@ -204,7 +199,7 @@ function toSecretStr(str: string) {
     return "${{ secrets." + str + " }}";
 }
 
-function generateActionFile(secrets: string[]) {
+function generateActionFile(whoami:string, branchName: string, secrets: string[]) {
     // Convert ["PULUMI_ACCESS_TOKEN", "PULUMI_STACK_NAME", "ROLE_ARN"] 
     // into { "PULUMI_ACCESS_TOKEN": "{{ .secrets.PULUMI_ACCESS_TOKEN }}", etc... }
     const env = secrets.reduce((prev, secret) => {
