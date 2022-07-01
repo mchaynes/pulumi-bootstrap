@@ -176,16 +176,19 @@ export class ApiGwServer {
                 for (let [method, handler] of Object.entries(methods)) {
                     switch(method) {
                         case "GET":
+                        case "POST":
                             apiGwRoutes.push({
                                 path: path,
                                 method: method,
+                                
                                 eventHandler: new aws.lambda.CallbackFunction(`${path.replace(/\//, "")}-${method}`, {
                                     memorySize: 256,
+                                    runtime: "nodejs16.x", 
                                     callback: async (event: awsx.apigateway.Request)  => {
                                         const response = await handler({
                                             headers: event.headers as Record<string, string>,
                                             params: event.queryStringParameters as Record<string,string>,
-                                            body: event.body ?? "",
+                                            body: event.body || "",
                                         })
                                         return {
                                             statusCode: response.statusCode,
