@@ -69,17 +69,11 @@ $ export WHOAMI=root; yarn && yarn run tsc && yarn node ./bin/index.js
 1. A local developer environment that uses `docker-compose` to spin up a local mongodb instance
 1. A unit & integration testable developer experience where all "infrastructure" is injected into your "business logic"
 
-## Concept: `WHOAMI`
+###  Side Tangent:  `WHOAMI`
 `WHOAMI` is an environment variable that determines "who" this application is. When we run `node ./bin/index.js`, we supply `WHOAMI` so that the application knows what its job is. 
-
-### I am: `root`
-All operations that I would consider `sudo` operations for cloud resources happen as root. This includes initial setup and managing permissions at a level above a single instance of the application
-
-
-### I am: `mchaynes-laptop`
-This is live application that runs on my laptop. It uses `LocalDockerMongo` as its mongo db instance and uses `ExpressServer` to run the API.
-
-### I am: `github-actions-mchaynes`
+* `root`: All operations that I would consider `sudo` operations for cloud resources happen as root. This includes initial setup and managing permissions at a level above a single instance of the application
+* `mchaynes-laptop`: This is live application that runs on my laptop. It uses `LocalDockerMongo` as its mongo db instance and uses `ExpressServer` to run the API.
+* `github-actions-mchaynes`
 Environment/Branch/App specific github-action role. This incarnation of the app runs `bootstraps` then bails out. It does not run forever
 
 # That's nice, but isn't that just a regular Pulumi program? 
