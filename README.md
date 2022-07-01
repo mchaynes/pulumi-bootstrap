@@ -61,6 +61,24 @@ $ pulumi login
 $ export WHOAMI=root; yarn && yarn run tsc && yarn node ./bin/index.js
 
 ```
+```mermaid
+sequenceDiagram
+    participant Pulumi
+    actor User
+    participant Laptop
+    participant GitHub
+    participant API as "API Gateway"
+    participant Doc as DocumentDB
+    User ->> Laptop: WHOAMI=root yarn node ./bin/index.js
+    Laptop ->> GitHub: Create Repo
+    Laptop ->> Pulumi: Save State 
+    GitHub ->> GitHub: WHOAMI=github-actions yarn node ./bin/index.js
+    GitHub ->> API: Create Api Gateway
+    GitHub ->> Pulumi: Save State
+    GitHub ->> Doc: Create Doc DB Instance
+    GitHub ->> Pulumi: Save State
+```
+
 ## Tada! You now have:
 
 1. A GitHub repo + actions that has permissions to your AWS account
