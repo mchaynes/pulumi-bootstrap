@@ -37,4 +37,4 @@ jobs:
       - name: start app
         run: yarn && yarn run tsc && yarn node ./bin/index.js
         env:
-          WHOAMI: ${{ secrets.WHOAMI }}
+          WHOAMI: github-actions-mchaynes

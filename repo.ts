@@ -161,9 +161,6 @@ export class Branch {
             const repoEnv = new github.RepositoryEnvironment("repo-env", {
                 environment: branchName,
                 repository: repoName,
-                reviewers: [{
-                    users: [parseInt(user.id)]
-                }]
             });
 
             const pulumiToken = new pulumiservice.AccessToken("pulumiToken", {
@@ -184,19 +181,14 @@ export class Branch {
                 plaintextValue: branchName,
             }, opts);
 
-            new github.ActionsEnvironmentSecret("whoami-secret", {
+            new github.ActionsEnvironmentSecret("whoami", {
                 repository: repoName,
                 environment: repoEnv.environment,
                 secretName: EnvVars.WHOAMI,
                 plaintextValue: whoami,
             }, opts)
 
-            new github.BranchProtection("branch-protection", {
-                pattern: branchName,
-                repositoryId: repoName,
-            })
-
-            const actionFileContents = generateActionFile(branchName, Object.values(EnvVars))
+            const actionFileContents = generateActionFile(whoami, branchName, Object.values(EnvVars))
 
             fs.writeFileSync(`.github/workflows/${branchName}.yml`, actionFileContents)
         };
@@ -211,7 +203,7 @@ function toSecretStr(str: string) {
     return "${{ secrets." + str + " }}";
 }
 
-function generateActionFile(branchName: string, secrets: string[]) {
+function generateActionFile(whoami:string, branchName: string, secrets: string[]) {
     // Convert ["PULUMI_ACCESS_TOKEN", "PULUMI_STACK_NAME", "ROLE_ARN"] 
     // into { "PULUMI_ACCESS_TOKEN": "{{ .secrets.PULUMI_ACCESS_TOKEN }}", etc... }
     const env = secrets.reduce((prev, secret) => {
@@ -268,7 +260,7 @@ function generateActionFile(branchName: string, secrets: string[]) {
                         name: "start app",
                         run: "yarn && yarn run tsc && yarn node ./bin/index.js",
                         env: {
-                            [EnvVars.WHOAMI]: toSecretStr(EnvVars.WHOAMI),
+                            [EnvVars.WHOAMI]: whoami,
                         }
                     }
                 ]
