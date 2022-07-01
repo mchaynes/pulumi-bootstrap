@@ -219,7 +219,7 @@ function generateActionFile(secrets: string[]) {
         "on": {
             "push": {
                 "branches": [
-                    defaultBranch,
+                    "*",
                 ]
             }
         },

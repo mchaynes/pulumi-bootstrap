@@ -2,7 +2,7 @@ name: Run Pulumi Up
 'on':
   push:
     branches:
-      - main
+      - '*'
 permissions:
   id-token: write
   contents: read
@@ -34,4 +34,6 @@ jobs:
         with:
           node-version: '18'
       - name: start app
-        run: 'yarn '
+        run: yarn && yarn run tsc && yarn node ./bin/index.js
+        env:
+          WHOAMI: ${{ secrets.WHOAMI }}
