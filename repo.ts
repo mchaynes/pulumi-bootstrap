@@ -258,7 +258,7 @@ function generateActionFile(secrets: string[]) {
                     },
                     {
                         name: "start app",
-                        run: "yarn run tsc && yarn node ./bin/index.js",
+                        run: "yarn && yarn run tsc && yarn node ./bin/index.js",
                         env: {
                             [EnvVars.WHOAMI]: toSecretStr(EnvVars.WHOAMI),
                         }
