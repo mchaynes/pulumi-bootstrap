@@ -16,12 +16,16 @@ export class DocDb {
             const password = new random.RandomPassword("password", {
                 length: 8,
             })
+            const username = new random.RandomString("username", {
+                length: 10,
+                special: false,
+            })
             const docdb = new aws.docdb.Cluster("docdb", {
                 backupRetentionPeriod: 5,
-                clusterIdentifier: "",
+                clusterIdentifier: `${stackName}`,
                 engine: "docdb",
                 masterPassword: password.result,
-                masterUsername: "foo",
+                masterUsername: username.result,
                 preferredBackupWindow: "07:00-09:00",
                 skipFinalSnapshot: true,
             });
