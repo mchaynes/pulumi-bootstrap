@@ -8,9 +8,6 @@ import { Pulumi } from './pulumi';
 import { EnvVars } from './env';
 import { fstat } from 'fs';
 
-
-const defaultBranch = "main";
-
 export type GithubToAwsAuthProps = {
     repoOwner: string;
     repoName: string;

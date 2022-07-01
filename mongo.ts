@@ -25,12 +25,21 @@ export class DocDb {
             skipFinalSnapshot: true,
         });
 
-        return {
-
+        const output: MongoUpOutputs = {
+            username: docdb.masterUsername,
+            password: password.result,
+            host: docdb.endpoint,
+            port: docdb.port.apply(n => {
+                if (!n) {
+                    throw new Error("docdb port must be set")
+                }
+                return `${n}`
+            }),
         }
+        return output
     }
-    static async up(stackName: string)  {
-        Pulumi.up(stackName, DocDb.program)
+    static async up(stackName: string): Promise<MongoUpOutputs>  {
+        return await Pulumi.up(stackName, DocDb.program)
     }
 }
 
