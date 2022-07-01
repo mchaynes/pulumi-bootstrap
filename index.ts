@@ -20,7 +20,7 @@ export type App = {
      */
     bailAfterBootstrap?: boolean;
 
-    // From here on out, all of this config is specific to the live running application.
+    // Everything below is specific to the live running application.
     // These functions describe how to grab their various dependencies so that they can
     // be injected into the application
 
@@ -28,6 +28,12 @@ export type App = {
      * mongo function is responsible for getting a connection to a mongo server somehow
      */
     mongo?: () => Promise<MongoClient>;
+
+    /**
+     * listen function is the final piece of main. If defined, it stops the app from exiting so that
+     * the server can listen for requests and basically just do its job
+     */
+    listen?: (mongo: MongoClient) => Promise<void>;
 };
 
 export type Apps = {
@@ -44,7 +50,7 @@ export const pulumiProviders = {
 };
 
 export const projectName = "myles-hackathon";
-const repoName = "source-repo";
+const repoName = "pulumi-bootstrap";
 const repoOwner = "mchaynes";
 
 /**
@@ -110,32 +116,33 @@ const run = async () => {
         throw new Error(`You are ${whoami}, but you aren't a valid app. You probably need to add yourself to index.ts`);
     }
 
-    // get config for this app
-    const config = apps[whoami as keyof typeof apps];
+    const app = apps[whoami as keyof typeof apps];
 
     // init any "bootstrap" actions
     // "bootstraps" are any functions that should run that the "live" application doesn't depend on. 
     // basically: go do some work to make sure something is set up that we don't directly reference
     // in this application.
     // for CI/CD runs, this is the only thing we actually execute
-    if (config.bootstraps) {
-        for (let bootstrap of config.bootstraps) {
+    if (app.bootstraps) {
+        for (let bootstrap of app.bootstraps) {
             await bootstrap();
         }
     }
 
-    if (config.bailAfterBootstrap) {
+    if (app.bailAfterBootstrap) {
         console.log(`\n\nI, ${whoami}, am bailing out after successful bootstrap\n\n`);
         process.exit(0);
     }
 
-    if (!config.mongo) {
+    if (!app.mongo) {
         throw new Error("this app's config doesn't have a mongo connection");
     }
 
-    const mongoClient = await config.mongo();
+    const mongoClient = await app.mongo();
 
-    await ExpressServer.up(mongoClient);
+    if(app.listen) {
+        await app.listen(mongoClient)
+    }
 };
 
 

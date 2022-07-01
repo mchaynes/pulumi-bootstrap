@@ -1,7 +1,8 @@
 import type { Apps, collaborators } from './index';
 import { Branch } from "./repo";
 import { DocDb, LocalDockerMongo } from "./mongo";
-import { ApiGwServer } from './server';
+import { ApiGwServer, ExpressServer } from './server';
+import { MongoClient } from 'mongodb';
 
 
 export function laptopApps(repoOwner: string, repoName: string, users: typeof collaborators): Apps {
@@ -9,11 +10,12 @@ export function laptopApps(repoOwner: string, repoName: string, users: typeof co
         return {
             [`${user}-laptop`]: {
                 bootstraps: [
-                    // when we run locally, ensure that github actions is up to date
+                    // when we run locally, ensure that github actions and our deploy branch is up to date
                     async () => await Branch.up(user, { owner: repoOwner, repoName: repoName, whoami: `github-actions-${user}` }),
                 ],
                 // make sure that mongo is up and running
                 mongo: async () => await LocalDockerMongo.up(`local-mongo`),
+                listen: async (mongo: MongoClient) => await ExpressServer.up(mongo)
             },
             ...prev
         };

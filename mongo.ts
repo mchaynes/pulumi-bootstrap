@@ -32,12 +32,7 @@ export class DocDb {
                 username: docdb.masterUsername,
                 password: password.result,
                 host: docdb.endpoint,
-                port: docdb.port.apply(n => {
-                    if (!n) {
-                        throw new Error("docdb port must be set")
-                    }
-                    return `${n}`
-                }),
+                port: docdb.port.apply(n => `${n}`),
             }
             return output
         }
