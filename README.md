@@ -22,7 +22,7 @@ Here's a janky drawing I made that I think highlights what I'm talking about (ig
 
 
 
-### Code Rot
+### How do we avoid code rot?
 Additionally, when we treat our infrastructure separately from our application, the infrastructure gets treated like a second class citizen. We should treat it like the first class citizen it is.
 
 There's a great [comment on a hacker news thread](https://news.ycombinator.com/item?id=31394224) about this:
@@ -34,7 +34,7 @@ There's a great [comment on a hacker news thread](https://news.ycombinator.com/i
 So what if the infrastructure-as-code was just your regular application code? Do they have to be different?
 
 
-### Another Goal: Minimize Copy Paste
+### Can we avoid copy pasting?
  Executive Dysfunction is a real thing and I cannot execute more than like 2 steps at a time. Every time I copy paste something I get scared. I don't want to be scared when I'm linking up my application with my infrastructure. As I was developing this application, I didn't need to duplicate where I was defining a configuration key once.
 
 
