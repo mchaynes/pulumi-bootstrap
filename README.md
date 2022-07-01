@@ -67,16 +67,10 @@ sequenceDiagram
     actor User
     participant Laptop
     participant GitHub
-    participant API as "API Gateway"
-    participant Doc as DocumentDB
+    participant AWS
     User ->> Laptop: WHOAMI=root yarn node ./bin/index.js
     Laptop ->> GitHub: Create Repo
-    Laptop ->> Pulumi: Save State 
-    GitHub ->> GitHub: WHOAMI=github-actions yarn node ./bin/index.js
-    GitHub ->> API: Create Api Gateway
-    GitHub ->> Pulumi: Save State
-    GitHub ->> Doc: Create Doc DB Instance
-    GitHub ->> Pulumi: Save State
+    Laptop ->> AWS: Grant GitHub perms via OIDC
 ```
 
 ## Tada! You now have:
