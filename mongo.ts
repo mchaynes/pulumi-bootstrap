@@ -109,7 +109,7 @@ export class LocalDockerMongo {
 }
 
 export function formatMongoUrl({username, password, host, port}: MongoUpOutputs) {
-    return encodeURIComponent(`mongodb://${username}:${password}@${host}:${port}/`)
+    return `mongodb://${username}:${encodeURIComponent(password as string)}@${host}:${port}/`
 }
 
 /**
