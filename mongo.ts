@@ -1,9 +1,7 @@
 import { spawnSync } from 'child_process';
-import { InlineProgramArgs, LocalWorkspace } from '@pulumi/pulumi/automation';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { MongoClient } from "mongodb";
-import { projectName } from './index';
 import { Pulumi } from './pulumi';
 import * as pulumi from '@pulumi/pulumi'
 import * as aws from '@pulumi/aws'
@@ -11,26 +9,41 @@ import * as random from '@pulumi/random'
 
 
 export class DocDb {
-    static async program() {
-        const password = new random.RandomPassword("password", {
-            length: 8,
-        })
-        const docdb = new aws.docdb.Cluster("docdb", {
-            backupRetentionPeriod: 5,
-            clusterIdentifier: "my-docdb-cluster",
-            engine: "docdb",
-            masterPassword: password.result,
-            masterUsername: "foo",
-            preferredBackupWindow: "07:00-09:00",
-            skipFinalSnapshot: true,
-        });
-
-        return {
-
+    static program(stackName: string) {
+        return async () => {
+            const password = new random.RandomPassword("password", {
+                length: 8,
+            })
+            const username = new random.RandomString("username", {
+                length: 10,
+                special: false,
+            })
+            const docdb = new aws.docdb.Cluster("docdb", {
+                backupRetentionPeriod: 5,
+                clusterIdentifier: `${stackName}`,
+                engine: "docdb",
+                masterPassword: password.result,
+                masterUsername: username.result,
+                preferredBackupWindow: "07:00-09:00",
+                skipFinalSnapshot: true,
+            });
+    
+            const output: MongoUpOutputs = {
+                username: docdb.masterUsername,
+                password: password.result,
+                host: docdb.endpoint,
+                port: docdb.port.apply(n => {
+                    if (!n) {
+                        throw new Error("docdb port must be set")
+                    }
+                    return `${n}`
+                }),
+            }
+            return output
         }
     }
-    static async up(stackName: string)  {
-        Pulumi.up(stackName, DocDb.program)
+    static async up(stackName: string): Promise<MongoUpOutputs>  {
+        return await Pulumi.up(stackName, DocDb.program(stackName))
     }
 }
 
@@ -96,7 +109,7 @@ export class LocalDockerMongo {
 }
 
 export function formatMongoUrl({username, password, host, port}: MongoUpOutputs) {
-    return `mongodb://${username}:${password}@${host}:${port}/`
+    return `mongodb://${username}:${encodeURIComponent(password as string)}@${host}:${port}/`
 }
 
 /**

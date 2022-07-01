@@ -1,9 +1,7 @@
-import type { Apps, collaborators, environments } from './index';
+import type { Apps, collaborators } from './index';
 import { Branch } from "./repo";
 import { DocDb, LocalDockerMongo } from "./mongo";
-import { Ecs } from "./ecs";
-import { MongoClient } from "mongodb";
-import { EnvVars } from './env';
+import { ApiGwServer } from './server';
 
 
 export function laptopApps(repoOwner: string, repoName: string, users: typeof collaborators): Apps {
@@ -27,8 +25,10 @@ export function githubActionApps(envs: string[]): Apps {
         return {
             [`github-actions-${env}`]: {
                 bootstraps: [
-                    async () => await DocDb.up(env),
-                    async () => await Ecs.up(env),
+                    async () => {
+                        const outputs = await DocDb.up(`docdb-${env}`)
+                        await ApiGwServer.up(`apigw-${env}`, outputs)
+                    }
                 ],
                 // github actions are CI/CD processes, so they should just bootstrap then exit
                 bailAfterBootstrap: true,
