@@ -8,9 +8,6 @@ import { Pulumi } from './pulumi';
 import { EnvVars } from './env';
 import { fstat } from 'fs';
 
-
-const defaultBranch = "main";
-
 export type GithubToAwsAuthProps = {
     repoOwner: string;
     repoName: string;
@@ -161,9 +158,6 @@ export class Branch {
             const repoEnv = new github.RepositoryEnvironment("repo-env", {
                 environment: branchName,
                 repository: repoName,
-                reviewers: [{
-                    users: [parseInt(user.id)]
-                }]
             });
 
             const pulumiToken = new pulumiservice.AccessToken("pulumiToken", {
@@ -210,11 +204,11 @@ function generateActionFile(whoami:string, branchName: string, secrets: string[]
     }, {});
 
     return yaml.dump({
-        "name": "Run Pulumi Up",
+        "name": "Deploy app",
         "on": {
             "push": {
                 "branches": [
-                    defaultBranch,
+                    branchName,
                 ]
             }
         },
@@ -225,6 +219,7 @@ function generateActionFile(whoami:string, branchName: string, secrets: string[]
         "env": env,
         "jobs": {
             "update": {
+                "environment": branchName,
                 "name": "Update",
                 "runs-on": "ubuntu-latest",
                 "steps": [
@@ -253,9 +248,9 @@ function generateActionFile(whoami:string, branchName: string, secrets: string[]
                     },
                     {
                         name: "start app",
-                        run: "yarn run tsc && yarn node ./bin/index.js",
+                        run: "yarn && yarn run tsc && yarn node ./bin/index.js",
                         env: {
-                            [EnvVars.WHOAMI]: toSecretStr(EnvVars.WHOAMI),
+                            [EnvVars.WHOAMI]: whoami,
                         }
                     }
                 ]
