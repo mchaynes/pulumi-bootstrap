@@ -3,7 +3,7 @@
 > Warning: This repo is full of bugs because this is a hackathon and I spent too much time on playing with function serialization and not enough on the bootstrap experience
 
 
-This repo is a proof of concept a question I wanted to explore:
+This repo is a proof of concept for a question I wanted to explore:
 
 > Can you define and create your infrastructure in the same place you use it?
 
