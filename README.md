@@ -61,6 +61,18 @@ $ pulumi login
 $ export WHOAMI=root; yarn && yarn run tsc && yarn node ./bin/index.js
 
 ```
+
+
+## Tada! You now have:
+
+1. A GitHub repo + actions that has permissions to your AWS account
+1. `API Gateway` --> `Lambda` --> `MongoDb (DocumentDb)` stack running in AWS
+1. A couple of Pulumi stacks under a project called "pulumi-hackathon"
+1. A local developer environment that uses `docker-compose` to spin up a local mongodb instance
+1. A unit & integration testable developer experience where all "infrastructure" is injected into your "business logic"
+
+
+### root setup sequence
 ```mermaid
 sequenceDiagram
     participant Pulumi
@@ -71,15 +83,23 @@ sequenceDiagram
     User ->> Laptop: WHOAMI=root yarn node ./bin/index.js
     Laptop ->> GitHub: Create Repo
     Laptop ->> AWS: Grant GitHub perms via OIDC
+    Laptop ->> Pulumi: Save State
 ```
 
-## Tada! You now have:
-
-1. A GitHub repo + actions that has permissions to your AWS account
-1. `API Gateway` --> `Lambda` --> `MongoDb (DocumentDb)` stack running in AWS
-1. A couple of Pulumi stacks under a project called "pulumi-hackathon"
-1. A local developer environment that uses `docker-compose` to spin up a local mongodb instance
-1. A unit & integration testable developer experience where all "infrastructure" is injected into your "business logic"
+### github actions workflow
+```mermaid
+sequenceDiagram
+    participant Pulumi
+    participant Laptop
+    participant GitHub
+    participant Doc as DocumentDB
+    participant API as API Gateway
+    GitHub ->> GitHub: WHOAMI=github-actions yarn node ./bin/index.js
+    GitHub ->> API: Create Api Gateway
+    GitHub ->> Pulumi: Save State
+    GitHub ->> Doc: Create Doc DB Instance
+    GitHub ->> Pulumi: Save State
+```
 
 # That's nice, but isn't that just a regular Pulumi program? 
 
