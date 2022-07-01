@@ -189,9 +189,16 @@ export class Branch {
                 environment: repoEnv.environment,
                 secretName: EnvVars.WHOAMI,
                 plaintextValue: whoami,
+            }, opts)
+
+            new github.BranchProtection("branch-protection", {
+                pattern: branchName,
+                repositoryId: repoName,
             })
 
-            fs.writeFileSync(".github/workflows/push.yml", generateActionFile(Object.values(EnvVars)))
+            const actionFileContents = generateActionFile(branchName, Object.values(EnvVars))
+
+            fs.writeFileSync(`.github/workflows/${branchName}.yml`, actionFileContents)
         };
     }
 
@@ -204,7 +211,7 @@ function toSecretStr(str: string) {
     return "${{ secrets." + str + " }}";
 }
 
-function generateActionFile(secrets: string[]) {
+function generateActionFile(branchName: string, secrets: string[]) {
     // Convert ["PULUMI_ACCESS_TOKEN", "PULUMI_STACK_NAME", "ROLE_ARN"] 
     // into { "PULUMI_ACCESS_TOKEN": "{{ .secrets.PULUMI_ACCESS_TOKEN }}", etc... }
     const env = secrets.reduce((prev, secret) => {
@@ -215,11 +222,11 @@ function generateActionFile(secrets: string[]) {
     }, {});
 
     return yaml.dump({
-        "name": "Run Pulumi Up",
+        "name": "Deploy app",
         "on": {
             "push": {
                 "branches": [
-                    "*",
+                    branchName,
                 ]
             }
         },
@@ -230,6 +237,7 @@ function generateActionFile(secrets: string[]) {
         "env": env,
         "jobs": {
             "update": {
+                "environment": branchName,
                 "name": "Update",
                 "runs-on": "ubuntu-latest",
                 "steps": [
