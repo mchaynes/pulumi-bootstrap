@@ -424,6 +424,43 @@ The `Pulumi.up` convenience function is just a wrapper around `LocalWorkspace`. 
 
 # Pulumi Service Specific Niceness
 
+Because state of each stack is saved independently of the "app". We can easily refresh and destroy things via the `pulumi CLI`, without ever needing to invoke our program.
+
+```
+pulumi refresh -s myles/myles-hackathon/gh-branch-mchaynes                                                                                                                                                                                                                              ─╯
+Previewing refresh (gh-branch-mchaynes)
+
+View Live: https://app.pulumi.com/myles/myles-hackathon/gh-branch-mchaynes/previews/13ea7660-c376-4b5a-b936-95cf7a2911d6
+
+     Type                                   Name                                Plan       
+     pulumi:pulumi:Stack                    myles-hackathon-gh-branch-mchaynes             
+     ├─ pulumi:providers:github             provider                                       
+ -   ├─ github:index:RepositoryEnvironment  repo-env                            delete     
+ -   └─ pulumiservice:index:AccessToken     pulumiToken                         delete     
+ 
+Resources:
+    - 2 to delete
+    2 unchanged
+
+Do you want to perform this refresh?
+No resources will be modified as part of this refresh; just your stack's state will be. yes
+Refreshing (gh-branch-mchaynes)
+
+View Live: https://app.pulumi.com/myles/myles-hackathon/gh-branch-mchaynes/updates/71
+
+     Type                                   Name                                Status      
+     pulumi:pulumi:Stack                    myles-hackathon-gh-branch-mchaynes              
+     ├─ pulumi:providers:github             provider                                        
+ -   ├─ github:index:RepositoryEnvironment  repo-env                            deleted     
+ -   └─ pulumiservice:index:AccessToken     pulumiToken                         deleted     
+ 
+Resources:
+    - 2 deleted
+    2 unchanged
+
+Duration: 1s
+```
+
 Even when spinning up my local docker instance, I was able to store the configuration of my local inside of the pulumi service, and get a history of the running application. This means that I never need a `.env` file. It also means that I can view what failed and when and how, long after my shell history is gone.
 
 <img src="assets/local-update.png" alt="drawing" width="700"/>
