@@ -7,7 +7,7 @@ This repo is a proof of concept a question I wanted to explore:
 
 > Can you define and create your infrastructure in the same place you use it?
 
-> What would it look like if you did it that way? How would it work?
+What would it look like if you did it that way? How would it work?
 
 
 ## Motivation
